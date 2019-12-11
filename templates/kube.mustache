@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{CI_PROJECT_NAME}}
+  labels:
+    app: {{CI_PROJECT_NAME}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{CI_PROJECT_NAME}}
+  template:
+    metadata:
+      labels:
+        app: {{CI_PROJECT_NAME}}
+    spec:
+      hostNetwork: false
+      containers:
+        - name: test
+          image: {{CI_REGISTRY_IMAGE}}:{{CI_COMMIT_SHORT_SHA}}
+          imagePullPolicy: Always
+          env:
+{{#KEYCLOAK_USER}}
+          - name: KEYCLOAK_FRONTEND_URL
+            value: {{KEYCLOAK_FRONTEND_URL}}
+          - name: KEYCLOAK_USER
+            value: {{KEYCLOAK_USER}}
+          - name: KEYCLOAK_PASSWORD
+            value: {{KEYCLOAK_PASSWORD}}
+          - name: DB_VENDOR
+            value: postgres
+          - name: DB_ADDR
+            value: {{DB_ADDR}}
+          - name: DB_DATABASE
+            value : {{DB_DATABASE}}
+          - name: DB_USER
+            value: {{DB_USER}}
+          - name: DB_PASSWORD
+            value: {{DB_PASSWORD}}
+{{/KEYCLOAK_USER}}
+{{^KEYCLOAK_USER}}
+          - name: PORT
+            value: "{{PORT}}"
+          - name: SENTRY_DSN
+            value: {{SENTRY_DSN}}
+          - name: DATABASE_URL
+            value: {{DATABASE_URL}}
+          - name: REGION
+            value: {{REGION}}
+          - name: ENDPOINT
+            value: {{ENDPOINT}}
+          - name: ACCESSKEY
+            value: {{ACCESSKEY}}
+          - name: SECRETKEY
+            value: {{SECRETKEY}}
+          - name: NAME_BUCKET
+            value: {{NAME_BUCKET}}
+          - name: ALLOWED_ORIGIN
+            value: {{ALLOWED_ORIGIN}}
+{{/KEYCLOAK_USER}}
+      imagePullSecrets:
+        - name: gitlab-registry
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{CI_PROJECT_NAME}}
+  labels:
+    app: {{CI_PROJECT_NAME}}
+spec:
+  type: LoadBalancer
+  ports:
+    - port: {{PORT}}
+      protocol: TCP
+  selector:
+      app: {{CI_PROJECT_NAME}}
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{CI_PROJECT_NAME}}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+    - host: {{HOST}}
+      http:
+        paths:
+{{#KEYCLOAK_USER}}
+          - path: /
+{{/KEYCLOAK_USER}}
+{{^KEYCLOAK_USER}}
+          - path: /{{CI_PROJECT_NAME}}
+{{/KEYCLOAK_USER}}
+            backend:
+              serviceName: {{CI_PROJECT_NAME}}
+              servicePort: {{PORT}}

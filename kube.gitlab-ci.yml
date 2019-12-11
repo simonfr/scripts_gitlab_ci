@@ -1,0 +1,20 @@
+deploy to kubernetes:
+  stage: deploy
+  image: alpine
+  environment:
+    name: production
+  before_script:
+    - apk add --no-cache curl bash coreutils
+    - curl -sSL https://git.io/get-mo -o mo
+    - chmod +x mo
+    - mv mo /usr/local/bin/
+    - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+    - chmod +x ./kubectl
+    - mv ./kubectl /usr/local/bin/
+  script:
+    - 'printf "apiVersion: v1\nkind: Secret\n$(kubectl create secret docker-registry gitlab-registry --docker-server=$CI_REGISTRY --docker-username=$CI_REGISTRY_USER --docker-password=$CI_REGISTRY_PASSWORD --docker-email=$GITLAB_USER_EMAIL -o yaml --dry-run)" | kubectl apply -f -'
+    - mo ci-tools/templates/kube.mustache > kubernetes.yml
+    - cat kubernetes.yml
+    - kubectl apply -f kubernetes.yml --validate=false
+  only:
+    - master

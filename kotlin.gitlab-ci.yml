@@ -1,0 +1,52 @@
+image: 'maven'
+
+stages:
+  - test
+  - doc
+  - prepare
+  - build
+  - check
+  - version
+  - deploy
+
+include:
+  - template: Code-Quality.gitlab-ci.yml
+  - local: kube.gitlab-ci.yml
+
+test:
+  stage: test
+  script:
+    - mvn clean
+    - mvn compile
+    - mvn test
+
+prepare artifact:
+  stage: prepare
+  script:
+    - mvn package
+    - export package_name=$(mvn -q -Dexec.executable=echo -Dexec.args='${project.build.finalName}' --non-recursive exec:exec)
+    - mv target/${package_name}.jar target/artifact.jar
+  artifacts:
+    paths: [target/artifact.jar]
+
+prepare tools:
+  stage: prepare
+  script:
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/instalitre/ci-workflow.git ci-tools
+  artifacts:
+    paths:
+      - ci-tools/
+
+build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - sed 's|_BINARY_NAME_|'"artifact.jar"'|g' ci-tools/templates/kotlin.Dockerfile.tpl > kotlin.Dockerfile;
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/kotlin.Dockerfile --destination $CI_REGISTRY_IMAGE:latest
+
+cache:
+  paths:
+    - .m2/

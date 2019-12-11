@@ -1,0 +1,29 @@
+image: 'alpine'
+
+stages:
+  - prepare
+  - build
+  - deploy
+
+include:
+  - local: kube.gitlab-ci.yml
+
+prepare tools:
+  stage: prepare
+  before_script:
+    - apk add git
+  script:
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/instalitre/ci-workflow.git ci-tools
+  artifacts:
+    paths:
+      - ci-tools/
+
+build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - cp ci-tools/templates/auth.Dockerfile.tpl auth.Dockerfile
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/auth.Dockerfile --destination $CI_REGISTRY_IMAGE:latest
